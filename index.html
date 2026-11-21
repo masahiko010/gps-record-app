@@ -1,254 +1,319 @@
-<!DOCTYPE html>
+<!D<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ドライブ・散歩 計画＆実施表</title>
+  <title>ドライブ・散歩 時刻表アプリ</title>
   <style>
     * { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
       max-width: 600px;
       margin: 0 auto;
-      padding: 16px;
+      padding: 14px;
       background-color: #f4f6f8;
       color: #333;
     }
-    h1 { font-size: 1.3rem; text-align: center; margin-bottom: 16px; }
+    h1 { font-size: 1.25rem; text-align: center; margin: 4px 0 12px; }
     .card {
       background: #fff;
-      padding: 16px;
+      padding: 14px;
       border-radius: 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      margin-bottom: 14px;
-    }
-    .field { margin-bottom: 10px; }
-    .field label {
-      display: block;
-      font-size: 0.8rem;
-      font-weight: bold;
-      color: #555;
-      margin-bottom: 4px;
-    }
-    .time-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
       margin-bottom: 12px;
     }
-    input[type="text"], input[type="time"] {
-      width: 100%;
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .row:last-child { margin-bottom: 0; }
+    input[type="text"], input[type="time"], input[type="url"], select {
       padding: 10px;
       border: 1px solid #ccc;
       border-radius: 8px;
-      font-size: 1rem;
+      font-size: 0.95rem;
       background: #fff;
+      width: 100%;
     }
     button {
-      padding: 10px 14px;
+      padding: 10px 12px;
       border: none;
       border-radius: 8px;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       font-weight: bold;
       cursor: pointer;
+      white-space: nowrap;
     }
-    .btn-add { background: #007aff; color: #fff; width: 100%; }
-    .btn-row { display: flex; gap: 8px; margin-top: 10px; }
-    .btn-arrive { background: #34c759; color: #fff; flex: 1; }
-    .btn-depart { background: #ff9500; color: #fff; flex: 1; }
-    .btn-del { background: #ff3b30; color: #fff; font-size: 0.8rem; padding: 6px 10px; }
-    .spot-item {
+    button:disabled { opacity: 0.5; }
+    .btn-primary { background: #007aff; color: #fff; }
+    .btn-green { background: #34c759; color: #fff; }
+    .btn-gray { background: #e5e5ea; color: #333; }
+    .btn-full { width: 100%; }
+
+    /* 時刻表アイテム */
+    .timetable-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
       border-left: 5px solid #007aff;
       padding-left: 12px;
     }
-    .spot-item.arrived { border-left-color: #34c759; }
-    .spot-item.departed { border-left-color: #8e8e93; }
-    .spot-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .spot-title { font-weight: bold; font-size: 1.1rem; }
-    .plan-box {
-      font-size: 0.88rem;
-      color: #555;
-      margin-top: 6px;
-      background: #f0f4f8;
-      padding: 6px 10px;
-      border-radius: 6px;
+    .timetable-item.done { border-left-color: #34c759; }
+    .tt-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .place-name { font-weight: bold; font-size: 1.05rem; }
+    .badge {
+      font-size: 0.78rem;
+      font-weight: bold;
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: #fff;
     }
-    .result-box {
-      background: #eafaf1;
-      padding: 8px 10px;
-      border-radius: 6px;
-      margin-top: 8px;
-      font-size: 0.88rem;
-      line-height: 1.6;
+    .badge-dep { background: #ff9500; }
+    .badge-arr { background: #007aff; }
+    .time-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 0.9rem;
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 8px;
     }
-    .map-link { color: #007aff; text-decoration: none; font-weight: bold; }
+    .actual-ok { color: #1e8e3e; font-weight: bold; }
+    .map-link { font-size: 0.85rem; color: #007aff; text-decoration: none; font-weight: bold; }
+    .status-msg { text-align: center; font-size: 0.85rem; color: #666; margin-bottom: 8px; }
+    details summary { font-size: 0.85rem; color: #666; cursor: pointer; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>🚗 ドライブ・散歩 計画＆実施表</h1>
+  <h1>🚗 ドライブ・散歩 時刻表</h1>
+
+  <!-- 連携URL設定（初回のみ入力） -->
+  <div class="card">
+    <details id="settingsDetails">
+      <summary>⚙️ スプレッドシート連携設定（初回のみ）</summary>
+      <div style="margin-top: 10px;">
+        <input type="url" id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+        <button class="btn-primary btn-full" style="margin-top:8px;" onclick="saveGasUrl()">URLを保存して読み込む</button>
+      </div>
+    </details>
+  </div>
+
+  <!-- タブ（シート）選択 -->
+  <div class="card">
+    <div class="row">
+      <select id="sheetSelect" onchange="loadSheet(this.value)"></select>
+      <button class="btn-gray" onclick="loadSheet(currentSheet)">🔄 更新</button>
+      <button class="btn-gray" onclick="createNewSheet()">＋ 新規</button>
+    </div>
+  </div>
 
   <!-- 計画追加フォーム -->
   <div class="card">
-    <div class="field">
-      <label for="spotName">行き先・スポット名</label>
-      <input type="text" id="spotName" placeholder="例：自宅、道の駅〇〇、〇〇公園">
+    <div class="row">
+      <input type="text" id="placeInput" placeholder="場所（例：自宅、道の駅〇〇）">
     </div>
-    <div class="time-row">
-      <div>
-        <label for="planArrival" style="display:block; font-size:0.8rem; font-weight:bold; color:#555; margin-bottom:4px;">到着予定</label>
-        <input type="time" id="planArrival">
-      </div>
-      <div>
-        <label for="planDeparture" style="display:block; font-size:0.8rem; font-weight:bold; color:#555; margin-bottom:4px;">出発予定</label>
-        <input type="time" id="planDeparture">
-      </div>
+    <div class="row">
+      <select id="typeInput" style="flex:1;">
+        <option value="出発">出発</option>
+        <option value="到着">到着</option>
+      </select>
+      <input type="time" id="planTimeInput" style="flex:1;">
+      <button class="btn-primary" id="addBtn" onclick="addPlan()">＋ 追加</button>
     </div>
-    <button class="btn-add" onclick="addSpot()">＋ 計画に追加</button>
   </div>
 
-  <!-- 計画・実施リスト -->
-  <div id="spotList"></div>
+  <div id="statusMsg" class="status-msg"></div>
+
+  <!-- 時刻表リスト -->
+  <div id="timetableList"></div>
 
   <script>
-    // 保存データの読み込み
-    let spots = JSON.parse(localStorage.getItem('drive_spots') || '[]');
+    let gasUrl = localStorage.getItem('gas_web_app_url') || '';
+    let currentSheet = '';
 
-    function save() {
-      localStorage.setItem('drive_spots', JSON.stringify(spots));
-      render();
+    // 初期起動処理
+    window.onload = () => {
+      if (gasUrl) {
+        document.getElementById('gasUrlInput').value = gasUrl;
+        loadSheet('');
+      } else {
+        document.getElementById('settingsDetails').open = true;
+        setStatus('まずは上の「連携設定」にGASのURLを保存してください');
+      }
+    };
+
+    function setStatus(msg) {
+      document.getElementById('statusMsg').textContent = msg;
+    }
+
+    function saveGasUrl() {
+      const val = document.getElementById('gasUrlInput').value.trim();
+      if (!val.startsWith('https://script.google.com/')) {
+        alert('正しいGASのウェブアプリURLを入力してください');
+        return;
+      }
+      gasUrl = val;
+      localStorage.setItem('gas_web_app_url', gasUrl);
+      document.getElementById('settingsDetails').open = false;
+      loadSheet('');
+    }
+
+    // スプレッドシートから読み込み
+    async function loadSheet(sheetName) {
+      if (!gasUrl) return;
+      setStatus('スプレッドシートを読み込み中...');
+      try {
+        const url = sheetName ? `${gasUrl}?sheet=${encodeURIComponent(sheetName)}` : gasUrl;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        currentSheet = data.currentSheet;
+
+        // シート選択プルダウン更新
+        const select = document.getElementById('sheetSelect');
+        select.innerHTML = '';
+        data.sheets.forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          if (name === currentSheet) opt.selected = true;
+          select.appendChild(opt);
+        });
+
+        renderTimetable(data.rows);
+        setStatus(`「${currentSheet}」を表示中（${data.rows.length}件）`);
+      } catch (err) {
+        setStatus('読み込みエラー：URLやデプロイ設定を確認してください');
+      }
+    }
+
+    // GASへPOST送信（CORS回避のため text/plain で送信）
+    async function postToGas(payload) {
+      const res = await fetch(gasUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    }
+
+    // 新しいシート（タブ）を作成
+    async function createNewSheet() {
+      if (!gasUrl) return;
+      const name = prompt('新しい計画表（タブ）の名前を入力してください\n例：11月23日_箱根ドライブ');
+      if (!name || !name.trim()) return;
+
+      setStatus('新しいシートを作成中...');
+      const res = await postToGas({ action: 'createSheet', sheetName: name.trim() });
+      if (res.status === 'ok') {
+        loadSheet(res.sheetName);
+      } else {
+        alert(res.message || '作成に失敗しました');
+        setStatus('');
+      }
     }
 
     // 計画を追加
-    function addSpot() {
-      const name = document.getElementById('spotName').value.trim();
-      const planArrival = document.getElementById('planArrival').value;
-      const planDeparture = document.getElementById('planDeparture').value;
+    async function addPlan() {
+      if (!gasUrl || !currentSheet) return;
+      const place = document.getElementById('placeInput').value.trim();
+      const type = document.getElementById('typeInput').value;
+      const planTime = document.getElementById('planTimeInput').value;
 
-      if (!name) {
-        alert('行き先を入力してください');
+      if (!place) {
+        alert('場所を入力してください');
         return;
       }
 
-      spots.push({
-        id: Date.now(),
-        name: name,
-        planArrival: planArrival,
-        planDeparture: planDeparture,
-        actualArrival: null,
-        actualDeparture: null,
-        lat: null,
-        lng: null
-      });
+      const btn = document.getElementById('addBtn');
+      btn.disabled = true;
+      setStatus('スプレッドシートに追加中...');
 
-      document.getElementById('spotName').value = '';
-      document.getElementById('planArrival').value = '';
-      document.getElementById('planDeparture').value = '';
-      save();
+      try {
+        await postToGas({
+          action: 'addRow',
+          sheetName: currentSheet,
+          place,
+          type,
+          planTime
+        });
+        document.getElementById('placeInput').value = '';
+        document.getElementById('planTimeInput').value = '';
+        await loadSheet(currentSheet);
+      } finally {
+        btn.disabled = false;
+      }
     }
 
-    // 現在時刻を HH:MM 形式で取得
-    function getNowTimeStr() {
-      const now = new Date();
-      return now.toTimeString().slice(0, 5);
-    }
-
-    // 到着を記録（GPS＋時刻）
-    function recordArrival(id) {
+    // 実績（現在時刻＋GPS）を記録
+    function recordActual(rowIndex, btn) {
       if (!navigator.geolocation) {
-        alert('このブラウザはGPSに対応していません');
+        alert('GPSに対応していません');
         return;
       }
+      btn.disabled = true;
+      btn.textContent = 'GPS取得中...';
+
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const target = spots.find(s => s.id === id);
-          if (target) {
-            target.actualArrival = getNowTimeStr();
-            target.lat = pos.coords.latitude.toFixed(6);
-            target.lng = pos.coords.longitude.toFixed(6);
-            save();
-          }
+        async (pos) => {
+          const now = new Date();
+          const actualTime = now.toTimeString().slice(0, 5);
+          const lat = pos.coords.latitude.toFixed(6);
+          const lng = pos.coords.longitude.toFixed(6);
+          const mapUrl = `https://maps.google.com/?q=${lat},${lng}`;
+
+          setStatus('スプレッドシートに記録中...');
+          await postToGas({
+            action: 'recordActual',
+            sheetName: currentSheet,
+            rowIndex,
+            actualTime,
+            lat,
+            lng,
+            mapUrl
+          });
+          await loadSheet(currentSheet);
         },
         (err) => {
-          alert('位置情報の取得に失敗しました。\n設定で位置情報を許可してください。(' + err.message + ')');
+          alert('位置情報の取得に失敗しました (' + err.message + ')');
+          btn.disabled = false;
+          btn.textContent = '📍 実績を記録（GPS）';
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     }
 
-    // 出発を記録（現在時刻）
-    function recordDeparture(id) {
-      const target = spots.find(s => s.id === id);
-      if (target) {
-        target.actualDeparture = getNowTimeStr();
-        save();
-      }
-    }
-
-    // 削除
-    function deleteSpot(id) {
-      if (confirm('この項目を削除しますか？')) {
-        spots = spots.filter(s => s.id !== id);
-        save();
-      }
-    }
-
-    // 画面を描画
-    function render() {
-      const list = document.getElementById('spotList');
+    // 時刻表を描画
+    function renderTimetable(rows) {
+      const list = document.getElementById('timetableList');
       list.innerHTML = '';
 
-      if (spots.length === 0) {
+      if (rows.length === 0) {
         list.innerHTML = '<p style="text-align:center; color:#888;">計画がまだありません</p>';
         return;
       }
 
-      spots.forEach(s => {
-        // 旧データとの互換性対応
-        const pArr = s.planArrival || s.planTime || '--:--';
-        const pDep = s.planDeparture || '--:--';
-        const aArr = s.actualArrival || s.actualTime || null;
-        const aDep = s.actualDeparture || null;
-
-        let statusClass = '';
-        if (aDep) statusClass = 'departed';
-        else if (aArr) statusClass = 'arrived';
-
+      rows.forEach(r => {
+        const isDone = r.actualTime !== '';
+        const isDep = r.type === '出発';
         const div = document.createElement('div');
         div.className = 'card';
         div.innerHTML = `
-          <div class="spot-item ${statusClass}">
-            <div class="spot-header">
-              <div class="spot-title">${s.name}</div>
-              <button class="btn-del" onclick="deleteSpot(${s.id})">削除</button>
+          <div class="timetable-item ${isDone ? 'done' : ''}">
+            <div class="tt-top">
+              <div class="place-name">${r.place}</div>
+              <span class="badge ${isDep ? 'badge-dep' : 'badge-arr'}">${r.type || '未設定'}</span>
             </div>
-
-            <div class="plan-box">
-              📅 <strong>計画</strong> 到着：${pArr} ／ 出発：${pDep}
+            <div class="time-grid">
+              <div>📅 予定：<strong>${r.planTime || '--:--'}</strong></div>
+              <div class="${isDone ? 'actual-ok' : ''}">✅ 実績：${r.actualTime || '未記録'}</div>
             </div>
-
-            ${(aArr || aDep) ? `
-              <div class="result-box">
-                ✅ <strong>実績</strong> 到着：${aArr || '--:--'} ／ 出発：${aDep || '--:--'}<br>
-                ${s.lat && s.lng ? `
-                  📍 緯度: ${s.lat}, 経度: ${s.lng}<br>
-                  <a class="map-link" href="https://maps.google.com/?q=${s.lat},${s.lng}" target="_blank">🗺 Googleマップで場所を見る</a>
-                ` : ''}
-              </div>
-            ` : ''}
-
-            <div class="btn-row">
-              ${!aArr ? `<button class="btn-arrive" onclick="recordArrival(${s.id})">📍 到着を記録</button>` : ''}
-              ${!aDep ? `<button class="btn-depart" onclick="recordDeparture(${s.id})">🚗 出発を記録</button>` : ''}
-            </div>
+            ${r.mapUrl ? `<a class="map-link" href="${r.mapUrl}" target="_blank">🗺 記録地点をGoogleマップで見る</a>` : ''}
+            ${!isDone ? `<button class="btn-green btn-full" onclick="recordActual(${r.rowIndex}, this)">📍 実績を記録（GPS）</button>` : ''}
           </div>
         `;
         list.appendChild(div);
       });
     }
-
-    // 初回表示
-    render();
   </script>
 </body>
 </html>
