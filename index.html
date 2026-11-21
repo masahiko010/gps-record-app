@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ドライブ・散歩 計画＆実施表</title>
   <style>
+    * { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
       max-width: 600px;
@@ -19,16 +20,30 @@
       padding: 16px;
       border-radius: 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
-    .form-group { display: flex; gap: 8px; margin-bottom: 10px; }
+    .field { margin-bottom: 10px; }
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    .time-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
     input[type="text"], input[type="time"] {
+      width: 100%;
       padding: 10px;
       border: 1px solid #ccc;
       border-radius: 8px;
       font-size: 1rem;
+      background: #fff;
     }
-    input[type="text"] { flex: 1; }
     button {
       padding: 10px 14px;
       border: none;
@@ -38,23 +53,33 @@
       cursor: pointer;
     }
     .btn-add { background: #007aff; color: #fff; width: 100%; }
-    .btn-gps { background: #34c759; color: #fff; width: 100%; margin-top: 8px; }
+    .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+    .btn-arrive { background: #34c759; color: #fff; flex: 1; }
+    .btn-depart { background: #ff9500; color: #fff; flex: 1; }
     .btn-del { background: #ff3b30; color: #fff; font-size: 0.8rem; padding: 6px 10px; }
     .spot-item {
       border-left: 5px solid #007aff;
       padding-left: 12px;
-      margin-bottom: 14px;
     }
-    .spot-item.done { border-left-color: #34c759; }
-    .spot-header { display: flex; justify-content: space-between; align-items: center; }
+    .spot-item.arrived { border-left-color: #34c759; }
+    .spot-item.departed { border-left-color: #8e8e93; }
+    .spot-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .spot-title { font-weight: bold; font-size: 1.1rem; }
-    .meta { font-size: 0.85rem; color: #666; margin-top: 4px; }
-    .result {
+    .plan-box {
+      font-size: 0.88rem;
+      color: #555;
+      margin-top: 6px;
+      background: #f0f4f8;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+    .result-box {
       background: #eafaf1;
       padding: 8px 10px;
       border-radius: 6px;
       margin-top: 8px;
-      font-size: 0.85rem;
+      font-size: 0.88rem;
+      line-height: 1.6;
     }
     .map-link { color: #007aff; text-decoration: none; font-weight: bold; }
   </style>
@@ -65,9 +90,19 @@
 
   <!-- 計画追加フォーム -->
   <div class="card">
-    <div class="form-group">
-      <input type="time" id="planTime" value="10:00">
-      <input type="text" id="spotName" placeholder="行き先（例：道の駅〇〇）">
+    <div class="field">
+      <label for="spotName">行き先・スポット名</label>
+      <input type="text" id="spotName" placeholder="例：自宅、道の駅〇〇、〇〇公園">
+    </div>
+    <div class="time-row">
+      <div>
+        <label for="planArrival" style="display:block; font-size:0.8rem; font-weight:bold; color:#555; margin-bottom:4px;">到着予定</label>
+        <input type="time" id="planArrival">
+      </div>
+      <div>
+        <label for="planDeparture" style="display:block; font-size:0.8rem; font-weight:bold; color:#555; margin-bottom:4px;">出発予定</label>
+        <input type="time" id="planDeparture">
+      </div>
     </div>
     <button class="btn-add" onclick="addSpot()">＋ 計画に追加</button>
   </div>
@@ -86,37 +121,49 @@
 
     // 計画を追加
     function addSpot() {
-      const time = document.getElementById('planTime').value;
       const name = document.getElementById('spotName').value.trim();
+      const planArrival = document.getElementById('planArrival').value;
+      const planDeparture = document.getElementById('planDeparture').value;
+
       if (!name) {
         alert('行き先を入力してください');
         return;
       }
+
       spots.push({
         id: Date.now(),
-        planTime: time,
         name: name,
-        actualTime: null,
+        planArrival: planArrival,
+        planDeparture: planDeparture,
+        actualArrival: null,
+        actualDeparture: null,
         lat: null,
         lng: null
       });
+
       document.getElementById('spotName').value = '';
+      document.getElementById('planArrival').value = '';
+      document.getElementById('planDeparture').value = '';
       save();
     }
 
-    // GPSと現在時刻を記録（チェックイン）
-    function checkIn(id) {
+    // 現在時刻を HH:MM 形式で取得
+    function getNowTimeStr() {
+      const now = new Date();
+      return now.toTimeString().slice(0, 5);
+    }
+
+    // 到着を記録（GPS＋時刻）
+    function recordArrival(id) {
       if (!navigator.geolocation) {
         alert('このブラウザはGPSに対応していません');
         return;
       }
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const now = new Date();
-          const timeStr = now.toTimeString().slice(0, 5); // HH:MM
           const target = spots.find(s => s.id === id);
           if (target) {
-            target.actualTime = timeStr;
+            target.actualArrival = getNowTimeStr();
             target.lat = pos.coords.latitude.toFixed(6);
             target.lng = pos.coords.longitude.toFixed(6);
             save();
@@ -127,6 +174,15 @@
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
+    }
+
+    // 出発を記録（現在時刻）
+    function recordDeparture(id) {
+      const target = spots.find(s => s.id === id);
+      if (target) {
+        target.actualDeparture = getNowTimeStr();
+        save();
+      }
     }
 
     // 削除
@@ -148,25 +204,43 @@
       }
 
       spots.forEach(s => {
-        const isDone = s.actualTime !== null;
+        // 旧データとの互換性対応
+        const pArr = s.planArrival || s.planTime || '--:--';
+        const pDep = s.planDeparture || '--:--';
+        const aArr = s.actualArrival || s.actualTime || null;
+        const aDep = s.actualDeparture || null;
+
+        let statusClass = '';
+        if (aDep) statusClass = 'departed';
+        else if (aArr) statusClass = 'arrived';
+
         const div = document.createElement('div');
         div.className = 'card';
         div.innerHTML = `
-          <div class="spot-item ${isDone ? 'done' : ''}">
+          <div class="spot-item ${statusClass}">
             <div class="spot-header">
               <div class="spot-title">${s.name}</div>
               <button class="btn-del" onclick="deleteSpot(${s.id})">削除</button>
             </div>
-            <div class="meta">予定時刻：${s.planTime || '未設定'}</div>
-            ${isDone ? `
-              <div class="result">
-                ✅ <strong>到着時刻：${s.actualTime}</strong><br>
-                📍 緯度: ${s.lat}, 経度: ${s.lng}<br>
-                <a class="map-link" href="https://maps.google.com/?q=${s.lat},${s.lng}" target="_blank">🗺 Googleマップで場所を見る</a>
+
+            <div class="plan-box">
+              📅 <strong>計画</strong> 到着：${pArr} ／ 出発：${pDep}
+            </div>
+
+            ${(aArr || aDep) ? `
+              <div class="result-box">
+                ✅ <strong>実績</strong> 到着：${aArr || '--:--'} ／ 出発：${aDep || '--:--'}<br>
+                ${s.lat && s.lng ? `
+                  📍 緯度: ${s.lat}, 経度: ${s.lng}<br>
+                  <a class="map-link" href="https://maps.google.com/?q=${s.lat},${s.lng}" target="_blank">🗺 Googleマップで場所を見る</a>
+                ` : ''}
               </div>
-            ` : `
-              <button class="btn-gps" onclick="checkIn(${s.id})">📍 到着を記録（GPS取得）</button>
-            `}
+            ` : ''}
+
+            <div class="btn-row">
+              ${!aArr ? `<button class="btn-arrive" onclick="recordArrival(${s.id})">📍 到着を記録</button>` : ''}
+              ${!aDep ? `<button class="btn-depart" onclick="recordDeparture(${s.id})">🚗 出発を記録</button>` : ''}
+            </div>
           </div>
         `;
         list.appendChild(div);
